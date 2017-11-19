@@ -4,12 +4,13 @@ from datetime import datetime
 
 
 """
-Version 1.0
-In this version, all vectors created and sorted by their lexicographical order, then backtracking algorithm 
-runs over the first generation (which is all the vectors) and all possible codes will be created.
+Version 2.0
+Pre-computing a hamming distance table, and work with integer indexes of the table instead of actual words.
+Instead of calculating the hamming distance for each word during backtracking, simply looking in the 2D table.
 Benchmark:
-n=10, d=4: 0:01:06.279316 - with wrong result: 36, correct is 40
-n=11, d=4: around 7 minutes - correct answer: 72
+n=10, d=4: 0:00:04.071968 - with wrong result: 36, correct is 40
+n=11, d=4: 0:00:31.644406 - correct answer: 72
+n=12, d=4: 0:05:14.170399 - correct answer: 144
 """
 
 
@@ -26,47 +27,54 @@ def generate_all_vectors(length: int) -> list:
     return list(map(np.array, itertools.product([0, 1], repeat=length)))
 
 
-def is_np_array_satisfy_distance_in_list(needle: np.array, list_arrays: list, required_distance: int,
-                                         reversed_search=False) -> bool:
+def generate_hamming_distance_table(vector_list: list) -> list:
     """
-    Search through the list of words and check if the needle has minimum distance of d from all of them
-    :param needle: given vector we want to check if has minimum distance with all members of the list
-    :param list_arrays: given list of vectors
-    :param required_distance: d
-    :param reversed_search: if True, search from end of the list
-    :return:
+    Generate a hamming distance table with integer indexes as in the input vectors list
+    :param vector_list: List of vectors
+    :return: Hamming distance of vectors (in order with integer indexes)
     """
-    needle_weight = np.count_nonzero(needle)
-    if reversed_search:
-        list_arrays_iterator = reversed(list_arrays)
-    else:
-        list_arrays_iterator = list_arrays
+    distance_table = []
 
-    for word in list_arrays_iterator:
-        word_weight = np.count_nonzero(word)
-        if abs(word_weight - needle_weight) <= required_distance:
-            # if larger no need for calculating Hamming distance, definitely satisfies
-            if word_weight == needle_weight and np.array_equal(word, needle):
-                return False
-            if hamming_distance(word, needle) < required_distance:
-                return False
-    return True
+    for needle_index, vector_needle in enumerate(vector_list):
+
+        distance_table.append([])
+        for in_stack_index, vector_in_stack in enumerate(vector_list):
+
+            if needle_index == in_stack_index:
+                distance = 0
+            elif needle_index > in_stack_index:
+                distance = distance_table[in_stack_index][needle_index]
+            else:
+                distance = hamming_distance(vector_needle, vector_in_stack)
+
+            distance_table[needle_index].append(distance)
+
+    return distance_table
 
 
 def backtrack(code: list, candidates: list, level: int=1) -> list:
+    global hamming_distance_table
+
     for lexi_index, word in enumerate(candidates):
+
+        hamming_distance_list_for_word = hamming_distance_table[word]
 
         if level == 1:
             code = [word]
         else:
-            if not is_np_array_satisfy_distance_in_list(word, code, required_distance=d, reversed_search=True):
+            word_satisfy_minimum_distance_of_code = True
+            for codeword in reversed(code):
+                if hamming_distance_list_for_word[codeword] < d:
+                    word_satisfy_minimum_distance_of_code = False
+                    break
+            if not word_satisfy_minimum_distance_of_code:
                 continue
             code.append(word)
 
         candidates_for_current_word = []
         for candidate_for_word in candidates[lexi_index:]:
 
-            if hamming_distance(word, candidate_for_word) >= d:
+            if hamming_distance_list_for_word[candidate_for_word] >= d:
                 candidates_for_current_word.append(candidate_for_word)
 
         if not candidates_for_current_word:
@@ -85,7 +93,7 @@ def backtrack(code: list, candidates: list, level: int=1) -> list:
 
 timer = datetime.now()
 
-n = 10
+n = 9
 d = 4
 
 """
@@ -95,9 +103,16 @@ vectors = sorted(generate_all_vectors(n), key=np.count_nonzero)
 
 # print(vectors)
 
+distance_table_timer = datetime.now()
+hamming_distance_table = generate_hamming_distance_table(vectors)
+print('distance table pre-computation time: ' + str(datetime.now() - distance_table_timer))
+
+# for row in hamming_distance_table:
+#     print(row)
+
 codes_list = []
 
-backtrack([], vectors)
+backtrack([], list(range(len(vectors))))
 
 max_found_M = 0
 
