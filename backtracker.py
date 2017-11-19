@@ -28,8 +28,10 @@ def generate_all_vectors(length: int) -> list:
 
 def generate_hamming_distance_table(vector_list: list, minimum_distance: int) -> list:
     """
-    Generate a hamming distance table with integer indexes as in the input vectors list
+    Generate a hamming distance table with integer indexes as in the input vectors list, and a Boolean value
+    Based on if they satisfy the given minimum distance or not.
     :param vector_list: List of vectors
+    :param minimum_distance: Each two vectors that are 'minimum_distance' away from each other will be flagged as 'True'
     :return: Hamming distance of vectors (in order with integer indexes)
     """
     distance_table = []
@@ -52,7 +54,7 @@ def generate_hamming_distance_table(vector_list: list, minimum_distance: int) ->
 
 
 def backtrack(code: list, candidates: list, level: int=1) -> list:
-    global hamming_distance_table
+    global hamming_distance_table, codes_list
 
     for lexi_index, word in enumerate(candidates):
 
@@ -92,7 +94,7 @@ def backtrack(code: list, candidates: list, level: int=1) -> list:
 
 timer = datetime.now()
 
-n = 12
+n = 9
 d = 4
 
 """
@@ -102,22 +104,29 @@ vectors = sorted(generate_all_vectors(n), key=np.count_nonzero)
 
 # print(vectors)
 
+"""
+Pre-Computing hamming distance satisfaction table, just store if two vectors have a distance more than d or not.
+"""
 distance_table_timer = datetime.now()
 hamming_distance_table = generate_hamming_distance_table(vectors, d)
-print('---- distance table pre-computation time: ' + str(datetime.now() - distance_table_timer))
+print('--- distance table pre-computation time: ' + str(datetime.now() - distance_table_timer))
 
 # for row in hamming_distance_table:
 #     print(row)
 
 codes_list = []
+init_candidates = list(range(len(vectors)))     # list of vectors indexes from 'vectors' lexi-sorted list.
 
-backtrack([], list(range(len(vectors))))
+backtrack([], init_candidates)
 
 max_found_M = 0
-
+best_code_vector_indexes = []
 for found_code in codes_list:
-    # print('M=' + str(len(found_code)) + ' -- ' + ', '.join(list(map(str, found_code))))
-    max_found_M = max(len(found_code), max_found_M)
+
+    if len(found_code) > max_found_M:
+        best_code_vector_indexes = found_code
+        max_found_M = len(best_code_vector_indexes)
 
 print('----------------------- process took: ' + str(datetime.now() - timer) + ' time ----')
 print('max found M is: ' + str(max_found_M))
+print('code is: ' + str([''.join(map(str, vectors[i])) for i in best_code_vector_indexes]))
