@@ -1,15 +1,22 @@
+import multiprocessing
 import numpy as np
 import itertools
+import sys
+import time
 from datetime import datetime
 
 PRINT_BENCHMARKS = True
+PRINT_OUTPUT = False
+FILE_OUTPUT = True
 
 """
 Version 2.1
 Instead of writing the Hamming distance in the table, just a boolean which says it's >= d or not.
 Benchmark:
-n=8,  d=4: 0:00:00.050291 - correct answer: 16
-n=9,  d=4: 0:01:16.085821 - correct answer: 20
+n=6,  d=4: 0:00:00.017000 - correct answer: 4
+n=7,  d=4: 0:00:00.029000 - correct answer: 8
+n=8,  d=4: 0:00:00.061000 - correct answer: 16
+n=9,  d=4: 0:01:07.503750 - correct answer: 20
 """
 
 
@@ -55,7 +62,7 @@ def generate_hamming_distance_table(vector_list: list, minimum_distance: int, pr
 
             distance_table[needle_index].append(is_distance)
 
-    if PRINT_BENCHMARKS:
+    if PRINT_BENCHMARKS and PRINT_OUTPUT:
         print('--- distance table pre-computation time: ' + str(datetime.now() - distance_table_timer))
 
     if print_result:
@@ -69,95 +76,149 @@ def lexi_sorter(vectors_list: list) -> list:
     return sorted(vectors_list, key=np.count_nonzero)
 
 
-def is_word_satisfy_minimum_distance_of_code(code: list, hamming_distance_list_for_word: list) -> bool:
-    for codeword in reversed(code):
-        if not hamming_distance_list_for_word[codeword]:
-            return False
-    return True
+# def is_word_satisfy_minimum_distance_of_code(code: list, hamming_distance_list_for_word: list) -> bool:
+#     for codeword in reversed(code):
+#         if not hamming_distance_list_for_word[codeword]:
+#             return False
+#     return True
 
 
-def backtrack(code: list, candidates: list, level: int=0) -> (int, list):
-    global hamming_distance_table, codes_list, promised_M, leading_bit_non_zero, q
+def backtrack_on_word(lexi_index: int, word: int, level: int) -> (int, list):
+    global code, candidates, hamming_distance_table, codes_list, promised_M, leading_bit_non_zero, q
+
+    hamming_distance_list_for_word = hamming_distance_table[word]
+
+    if len(code) <= level:
+        code.append(word)
+    else:
+        code[level] = word
+
+    if not leading_bit_non_zero[word] and level >= (promised_M / q):
+        codes_list.append(code)
+        return level, code
+
+    if level + 1 >= promised_M:
+        codes_list.append(code)
+        return level, code
+
+    if len(candidates) <= level + 1:
+        candidates.append([])
+    else:
+        candidates[level + 1] = []
+
+    for candidate_for_word in candidates[level][lexi_index:]:
+
+        if hamming_distance_list_for_word[candidate_for_word]:
+            candidates[level + 1].append(candidate_for_word)
+
+    if level + 1 + len(candidates[level + 1]) < promised_M:
+        codes_list.append(code)
+        return level, code
+
+    return backtrack(level+1)
+
+
+def backtrack(level: int=0) -> (int, list):
+    global code, candidates, hamming_distance_table, codes_list, promised_M, leading_bit_non_zero, q
+    if __name__ == '__main__':
+        global pool, p_results
 
     for lexi_index, word in enumerate(candidates[level]):
 
-        hamming_distance_list_for_word = hamming_distance_table[word]
+        if __name__ == '__main__':
+            if level == 0:
+                p_results[lexi_index] = pool.apply_async(backtrack_on_word, [lexi_index, word, level])
 
-        if level == 0:
-            code = [word]
-        else:
-            if len(code) <= level:
-                code.append(word)
-            else:
-                code[level] = word
+        found_level, found_code = backtrack_on_word(lexi_index, word, level)
 
-        if not leading_bit_non_zero[word] and level >= (promised_M / q):
-            codes_list.append(code)
-            return level + 1, code
-
-        if level + 1 >= promised_M:
-            codes_list.append(code)
-            return level + 1, code
-
-        if len(candidates) <= level + 1:
-            candidates.append([])
-        else:
-            candidates[level + 1] = []
-
-        for candidate_for_word in candidates[level][lexi_index:]:
-
-            if hamming_distance_list_for_word[candidate_for_word]:
-                candidates[level + 1].append(candidate_for_word)
-
-        if level + 1 + len(candidates[level + 1]) < promised_M:
-            codes_list.append(code)
-            return level + 1, code
-
-        found_level, found_code = backtrack(code, candidates, level+1)
-
-        if found_level >= promised_M:
+        if found_level + 1 >= promised_M:
             return found_level, found_code
 
-    return level
+    if __name__ == '__main__':
+        if level == 0:
+            while True:
+                for starter_lexi_index, pool_result in p_results.items():
+                    if pool_result.ready():
+                        return pool_result.get()
+                    time.sleep(1)
+
+    return level, code
 
 
-timer = datetime.now()
-q = 2
+if __name__ == '__main__':
 
-n = 9
-d = 3
-promised_M = 40
+    timer = datetime.now()
+    q = 2
 
-"""
-Generates all vectors and sort them by their weight -> all possible binary numbers in lexicographical order
-"""
-vectors = sorted(generate_all_vectors(n, q), key=np.count_nonzero)
+    n = 9
+    d = 4
+    promised_M = 20
 
-leading_bit_non_zero = {lexi_index: (vector[0] != 0) for lexi_index, vector in enumerate(vectors)}
-# print(leading_bit_non_zero)
+    try:
+        n = int(sys.argv[1])
+    except:
+        pass
+    try:
+        d = int(sys.argv[2])
+    except:
+        pass
+    try:
+        promised_M = int(sys.argv[3])
+    except:
+        pass
 
-print([str(i) + ': ' + ''.join(map(str, vector)) for i, vector in enumerate(vectors)])
+    pool = multiprocessing.Pool(processes=multiprocessing.cpu_count() - 1)
+    p_results = {}
 
-"""
-Pre-Computing hamming distance satisfaction table, just store if two vectors have a distance more than d or not.
-"""
-hamming_distance_table = generate_hamming_distance_table(vectors, d)
+    """
+    Generates all vectors and sort them by their weight -> all possible binary numbers in lexicographical order
+    """
+    vectors = sorted(generate_all_vectors(n, q), key=np.count_nonzero)
 
-codes_list = []
-init_candidates = list(range(len(vectors)))     # list of vectors indexes from 'vectors' lexi-sorted list.
+    leading_bit_non_zero = {lexi_index: (vector[0] != 0) for lexi_index, vector in enumerate(vectors)}
+    # print(leading_bit_non_zero)
 
-max_found_M, best_code_vector_indexes = backtrack([], [init_candidates])
+    detailed_outputs = []
+    critical_outputs = []
+    if PRINT_OUTPUT:
+        print(str([str(i) + ': ' + ''.join(map(str, vector)) for i, vector in enumerate(vectors)]))
 
-# max_found_M = 0
-# best_code_vector_indexes = []
-# for found_code in codes_list:
-#
-#     if len(found_code) > max_found_M:
-#         best_code_vector_indexes = found_code
-#         max_found_M = len(best_code_vector_indexes)
-print('=== For n=' + str(n) + ' and d=' + str(d) + ' in GF(' + str(q) + '):')
-print('max found M is: ' + str(max_found_M))
-print('code is: ' + str([''.join(map(str, vectors[i])) for i in best_code_vector_indexes]))
+    """
+    Pre-Computing hamming distance satisfaction table, just store if two vectors have a distance more than d or not.
+    """
+    hamming_distance_table = generate_hamming_distance_table(vectors, d)
 
-if PRINT_BENCHMARKS:
-    print('----------------------- process took: ' + str(datetime.now() - timer) + ' time ----')
+    init_candidates = list(range(len(vectors)))     # list of vectors indexes from 'vectors' lexi-sorted list.
+
+    codes_list = []
+    code = []
+    candidates = [init_candidates]
+
+    max_found_M, best_code_vector_indexes = backtrack()
+
+    critical_outputs.append('=== For n=' + str(n) + ' and d=' + str(d) + ' in GF(' + str(q) + '):')
+    detailed_outputs.append(critical_outputs[-1])
+    critical_outputs.append('max found M is: ' + str(max_found_M + 1))
+    detailed_outputs.append(critical_outputs[-1])
+    detailed_outputs.append('code is: ' + str([''.join(map(str, vectors[i])) for i in best_code_vector_indexes]))
+
+    if PRINT_BENCHMARKS:
+        critical_outputs.append('----------------------- process took: ' + str(datetime.now() - timer) + ' time ----')
+        detailed_outputs.append(critical_outputs[-1])
+
+    file = None
+    if FILE_OUTPUT:
+        file = open("output_backtracker.txt", "w")
+    for line in detailed_outputs:
+        if PRINT_OUTPUT:
+            print(line)
+        if FILE_OUTPUT:
+            file.write(line)
+            file.write('\n')
+    if not PRINT_OUTPUT:
+        for line in critical_outputs:
+            print(line)
+    if FILE_OUTPUT:
+        file.close()
+
+    print(multiprocessing.cpu_count())
