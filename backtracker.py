@@ -2,6 +2,7 @@ import numpy as np
 import itertools
 from datetime import datetime
 
+PRINT_BENCHMARKS = True
 
 """
 Version 2.1
@@ -10,6 +11,7 @@ Benchmark:
 n=10, d=4: 0:00:03.120381 - with wrong result: 36, correct is 40
 n=11, d=4: 0:00:21.742692 - correct answer: 72
 n=12, d=4: 0:03:10.026099 - correct answer: 144
+n=13, d=4: 0:34:11.182061 - correct answer: 256
 """
 
 
@@ -26,7 +28,7 @@ def generate_all_vectors(length: int) -> list:
     return list(map(np.array, itertools.product([0, 1], repeat=length)))
 
 
-def generate_hamming_distance_table(vector_list: list, minimum_distance: int) -> list:
+def generate_hamming_distance_table(vector_list: list, minimum_distance: int, print_result: bool=False) -> list:
     """
     Generate a hamming distance table with integer indexes as in the input vectors list, and a Boolean value
     Based on if they satisfy the given minimum distance or not.
@@ -34,6 +36,9 @@ def generate_hamming_distance_table(vector_list: list, minimum_distance: int) ->
     :param minimum_distance: Each two vectors that are 'minimum_distance' away from each other will be flagged as 'True'
     :return: Hamming distance of vectors (in order with integer indexes)
     """
+    global PRINT_BENCHMARKS
+    distance_table_timer = datetime.now()
+
     distance_table = []
 
     for needle_index, vector_needle in enumerate(vector_list):
@@ -50,7 +55,25 @@ def generate_hamming_distance_table(vector_list: list, minimum_distance: int) ->
 
             distance_table[needle_index].append(is_distance)
 
+    if PRINT_BENCHMARKS:
+        print('--- distance table pre-computation time: ' + str(datetime.now() - distance_table_timer))
+
+    if print_result:
+        for row in distance_table:
+            print(row)
+
     return distance_table
+
+
+def lexi_sorter(vectors_list: list) -> list:
+    return sorted(vectors_list, key=np.count_nonzero)
+
+
+def is_word_satisfy_minimum_distance_of_code(code: list, hamming_distance_list_for_word: list) -> bool:
+    for codeword in reversed(code):
+        if not hamming_distance_list_for_word[codeword]:
+            return False
+    return True
 
 
 def backtrack(code: list, candidates: list, level: int=1) -> list:
@@ -63,12 +86,7 @@ def backtrack(code: list, candidates: list, level: int=1) -> list:
         if level == 1:
             code = [word]
         else:
-            word_satisfy_minimum_distance_of_code = True
-            for codeword in reversed(code):
-                if not hamming_distance_list_for_word[codeword]:
-                    word_satisfy_minimum_distance_of_code = False
-                    break
-            if not word_satisfy_minimum_distance_of_code:
+            if not is_word_satisfy_minimum_distance_of_code(code, hamming_distance_list_for_word):
                 continue
             code.append(word)
 
@@ -107,12 +125,7 @@ vectors = sorted(generate_all_vectors(n), key=np.count_nonzero)
 """
 Pre-Computing hamming distance satisfaction table, just store if two vectors have a distance more than d or not.
 """
-distance_table_timer = datetime.now()
 hamming_distance_table = generate_hamming_distance_table(vectors, d)
-print('--- distance table pre-computation time: ' + str(datetime.now() - distance_table_timer))
-
-# for row in hamming_distance_table:
-#     print(row)
 
 codes_list = []
 init_candidates = list(range(len(vectors)))     # list of vectors indexes from 'vectors' lexi-sorted list.
@@ -127,6 +140,7 @@ for found_code in codes_list:
         best_code_vector_indexes = found_code
         max_found_M = len(best_code_vector_indexes)
 
-print('----------------------- process took: ' + str(datetime.now() - timer) + ' time ----')
+if PRINT_BENCHMARKS:
+    print('----------------------- process took: ' + str(datetime.now() - timer) + ' time ----')
 print('max found M is: ' + str(max_found_M))
 print('code is: ' + str([''.join(map(str, vectors[i])) for i in best_code_vector_indexes]))
