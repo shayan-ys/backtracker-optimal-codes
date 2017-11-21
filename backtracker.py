@@ -1,15 +1,18 @@
 import numpy as np
 import itertools
+import sys
 from datetime import datetime
 
 PRINT_BENCHMARKS = True
+PRINT_OUTPUT = True
+FILE_OUTPUT = False
 
 """
 Version 2.1
 Instead of writing the Hamming distance in the table, just a boolean which says it's >= d or not.
 Benchmark:
 n=8,  d=4: 0:00:00.050291 - correct answer: 16
-n=9,  d=4: 0:01:16.085821 - correct answer: 20
+n=9,  d=4: 0:01:07.503750 - correct answer: 20
 """
 
 
@@ -55,7 +58,7 @@ def generate_hamming_distance_table(vector_list: list, minimum_distance: int, pr
 
             distance_table[needle_index].append(is_distance)
 
-    if PRINT_BENCHMARKS:
+    if PRINT_BENCHMARKS and PRINT_OUTPUT:
         print('--- distance table pre-computation time: ' + str(datetime.now() - distance_table_timer))
 
     if print_result:
@@ -76,28 +79,25 @@ def is_word_satisfy_minimum_distance_of_code(code: list, hamming_distance_list_f
     return True
 
 
-def backtrack(code: list, candidates: list, level: int=0) -> (int, list):
-    global hamming_distance_table, codes_list, promised_M, leading_bit_non_zero, q
+def backtrack(level: int=0) -> (int, list):
+    global code, candidates, hamming_distance_table, codes_list, promised_M, leading_bit_non_zero, q
 
     for lexi_index, word in enumerate(candidates[level]):
 
         hamming_distance_list_for_word = hamming_distance_table[word]
 
-        if level == 0:
-            code = [word]
+        if len(code) <= level:
+            code.append(word)
         else:
-            if len(code) <= level:
-                code.append(word)
-            else:
-                code[level] = word
+            code[level] = word
 
         if not leading_bit_non_zero[word] and level >= (promised_M / q):
             codes_list.append(code)
-            return level + 1, code
+            return level, code
 
         if level + 1 >= promised_M:
             codes_list.append(code)
-            return level + 1, code
+            return level, code
 
         if len(candidates) <= level + 1:
             candidates.append([])
@@ -111,11 +111,11 @@ def backtrack(code: list, candidates: list, level: int=0) -> (int, list):
 
         if level + 1 + len(candidates[level + 1]) < promised_M:
             codes_list.append(code)
-            return level + 1, code
+            return level, code
 
-        found_level, found_code = backtrack(code, candidates, level+1)
+        found_level, found_code = backtrack(level+1)
 
-        if found_level >= promised_M:
+        if found_level + 1 >= promised_M:
             return found_level, found_code
 
     return level
@@ -124,9 +124,22 @@ def backtrack(code: list, candidates: list, level: int=0) -> (int, list):
 timer = datetime.now()
 q = 2
 
-n = 9
-d = 3
-promised_M = 40
+n = 8
+d = 4
+promised_M = 16
+
+try:
+    n = int(sys.argv[1])
+except:
+    pass
+try:
+    d = int(sys.argv[2])
+except:
+    pass
+try:
+    promised_M = int(sys.argv[3])
+except:
+    pass
 
 """
 Generates all vectors and sort them by their weight -> all possible binary numbers in lexicographical order
@@ -136,28 +149,45 @@ vectors = sorted(generate_all_vectors(n, q), key=np.count_nonzero)
 leading_bit_non_zero = {lexi_index: (vector[0] != 0) for lexi_index, vector in enumerate(vectors)}
 # print(leading_bit_non_zero)
 
-print([str(i) + ': ' + ''.join(map(str, vector)) for i, vector in enumerate(vectors)])
+detailed_outputs = []
+critical_outputs = []
+if PRINT_OUTPUT:
+    print(str([str(i) + ': ' + ''.join(map(str, vector)) for i, vector in enumerate(vectors)]))
 
 """
 Pre-Computing hamming distance satisfaction table, just store if two vectors have a distance more than d or not.
 """
 hamming_distance_table = generate_hamming_distance_table(vectors, d)
 
-codes_list = []
 init_candidates = list(range(len(vectors)))     # list of vectors indexes from 'vectors' lexi-sorted list.
 
-max_found_M, best_code_vector_indexes = backtrack([], [init_candidates])
+codes_list = []
+code = []
+candidates = [init_candidates]
 
-# max_found_M = 0
-# best_code_vector_indexes = []
-# for found_code in codes_list:
-#
-#     if len(found_code) > max_found_M:
-#         best_code_vector_indexes = found_code
-#         max_found_M = len(best_code_vector_indexes)
-print('=== For n=' + str(n) + ' and d=' + str(d) + ' in GF(' + str(q) + '):')
-print('max found M is: ' + str(max_found_M))
-print('code is: ' + str([''.join(map(str, vectors[i])) for i in best_code_vector_indexes]))
+max_found_M, best_code_vector_indexes = backtrack()
+
+critical_outputs.append('=== For n=' + str(n) + ' and d=' + str(d) + ' in GF(' + str(q) + '):')
+detailed_outputs.append(critical_outputs[-1])
+critical_outputs.append('max found M is: ' + str(max_found_M + 1))
+detailed_outputs.append(critical_outputs[-1])
+detailed_outputs.append('code is: ' + str([''.join(map(str, vectors[i])) for i in best_code_vector_indexes]))
 
 if PRINT_BENCHMARKS:
-    print('----------------------- process took: ' + str(datetime.now() - timer) + ' time ----')
+    critical_outputs.append('----------------------- process took: ' + str(datetime.now() - timer) + ' time ----')
+    detailed_outputs.append(critical_outputs[-1])
+
+file = None
+if FILE_OUTPUT:
+    file = open("output_backtracker.txt", "w")
+for line in detailed_outputs:
+    if PRINT_OUTPUT:
+        print(line)
+    if FILE_OUTPUT:
+        file.write(line)
+        file.write('\n')
+if not PRINT_OUTPUT:
+    for line in critical_outputs:
+        print(line)
+if FILE_OUTPUT:
+    file.close()
