@@ -28,6 +28,9 @@ assuming level starts from 1:
     - Reason is searching through a list (by index) is much faster than searching through a key-value dictionary by key.
     - The order of search in list by index is **O(log(n))** (i.e. n is length of the list) but key-value dictionary with string keys is **O(n)**.
 
+## Benchmarks:
+Check [Latest Release](https://github.com/shayan-ys/backtracker-optimal-codes/releases) for up-to-date benchmarks.
+
 # Copyright
 Author: Shayan Yousefian - sy17sq@brocku.ca
 For the: "Coding Theory" 1P02 Course Assignment - by Prof. Sheridan Houghten - Brock University, Ontario, Canada
