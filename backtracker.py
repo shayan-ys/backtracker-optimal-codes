@@ -11,6 +11,8 @@ FILE_OUTPUT = False
 Version 2.1
 Instead of writing the Hamming distance in the table, just a boolean which says it's >= d or not.
 Benchmark:
+n=6,  d=4: 0:00:00.004000 - correct answer: 4
+n=7,  d=4: 0:00:00.012001 - correct answer: 8
 n=8,  d=4: 0:00:00.050291 - correct answer: 16
 n=9,  d=4: 0:01:07.503750 - correct answer: 20
 """
@@ -80,7 +82,7 @@ def is_word_satisfy_minimum_distance_of_code(code: list, hamming_distance_list_f
 
 
 def backtrack(level: int=0) -> (int, list):
-    global code, candidates, hamming_distance_table, codes_list, promised_M, leading_bit_non_zero, q
+    global code, candidates, hamming_distance_table, promised_M, leading_bit_non_zero, q
 
     for lexi_index, word in enumerate(candidates[level]):
 
@@ -92,11 +94,9 @@ def backtrack(level: int=0) -> (int, list):
             code[level] = word
 
         if not leading_bit_non_zero[word] and level >= (promised_M / q):
-            codes_list.append(code)
             return level, code
 
         if level + 1 >= promised_M:
-            codes_list.append(code)
             return level, code
 
         if len(candidates) <= level + 1:
@@ -110,7 +110,6 @@ def backtrack(level: int=0) -> (int, list):
                 candidates[level + 1].append(candidate_for_word)
 
         if level + 1 + len(candidates[level + 1]) < promised_M:
-            codes_list.append(code)
             return level, code
 
         found_level, found_code = backtrack(level+1)
@@ -124,9 +123,9 @@ def backtrack(level: int=0) -> (int, list):
 timer = datetime.now()
 q = 2
 
-n = 8
+n = 7
 d = 4
-promised_M = 16
+promised_M = 4
 
 try:
     n = int(sys.argv[1])
@@ -161,7 +160,6 @@ hamming_distance_table = generate_hamming_distance_table(vectors, d)
 
 init_candidates = list(range(len(vectors)))     # list of vectors indexes from 'vectors' lexi-sorted list.
 
-codes_list = []
 code = []
 candidates = [init_candidates]
 
